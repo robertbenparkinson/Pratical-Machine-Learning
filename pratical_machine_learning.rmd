@@ -1,0 +1,134 @@
+---
+title: "Practical  Machine Learning Assignment"
+author: "Robert Ben Parkinson"
+date: "17 July 2016"
+output: html_document
+---
+
+#Overview
+
+Every day more and more data driven sports devices, such as Fit Bit, Jawbone and others, come onto the market. These devices generate a huge amount of data. Our goal in this assignment, and in data science in general, is to take this flood of data and turn it into something useful. Our best hope for doing this is turning to various machine learning techniques used to sort and make useful predictions on our actions, behaviors and much more.  
+
+#Course Data
+
+The data used for this project come from this source: http://groupware.les.inf.puc-rio.br/har. They have been very generous in allowing their data to be used for this kind of assignment.
+
+
+##Load the Data
+
+The data provides comes in the form of two CSV files. The pml-training.csv files is a rather large and daunting file that consists of 160 columns and 19,622 observation from which we will build out training model.
+
+The second file, pml-testing.csv will be used to test our final model. 
+
+```{r}
+if (!file.exists("pml-training.csv")) {
+        download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv")
+}
+
+if (!file.exists("pml-testing.csv")) {
+        download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv")
+}
+
+pml_training <-read.csv("pml-training.csv", header = TRUE, sep = ",")
+pml_testing <- read.csv("pml-testing.csv", header = TRUE, sep = ",")
+```
+
+#Libraries
+The following write up uses the "caret", "ggplot2", and randomForest packages. All packages can be found on the https://cran.r-project.org/ website. 
+
+
+```{r}
+library(caret)
+library(ggplot2)
+library(randomForest)
+
+
+```
+
+##Cleaning The Data
+
+one of the biggest considerations in any major data project is finding a way to 'clean the data' into something useful that won't throw out a sea of errors. 
+
+From both the training and testing sets all of the NA's found in the data were replaced by "0". 
+From there I used the nearZeroVar function to remove the columns that very nearly empty. This drastically allows us to simplify our model down from 160 columns of data to 60 columns of data
+
+In the next step I removed the following columns in order to prevent any undue correlations in our data sets.
+
+1. $X or the Id column. 
+2. $user_name. This prevents any undue connections between the user and the exercises they preform. For example, Carlos does a lot a squats, therefor any exercise Carlos does must be squats. 
+3. All of the Time Stamp columns. For example its always a good idea to warm up before lifting weights. Because of this mis-classifications and connections maybe made on the basis of time rather than on the data itself. 
+
+In the end this leaves us with 52 columns of data. All changes are made to both the training and testing data sets to prevent errors later. 
+
+
+```{r}
+training <- pml_training[, colSums(is.na(pml_training)) == 0] 
+nz <- nearZeroVar(training, saveMetrics = TRUE)
+training <- training[, nz$nzv==FALSE]
+training <- training[, -c(1:7)]
+
+##cuts $x (id)
+##user_name
+##timestamp columns part_1, part_2 and part_3
+##as well as num_window
+
+testing <- pml_testing[, colSums(is.na(pml_testing)) == 0] 
+nz <- nearZeroVar(testing, saveMetrics = TRUE)
+testing <- testing[, nz$nzv==FALSE]
+testing <- testing[, -c(1:7)]
+
+```
+
+##Data Partition
+In this step I have partitioned the training data set into two separated data sets called training data and cross_testingdate (not to be confused with the pml-testing.csv). 
+
+
+```{r}
+set.seed(999)
+inTrain <- createDataPartition(training$classe, p=0.7, list=FALSE)
+training_data <- training[inTrain,]
+cross_testing_data <- training[-inTrain,]
+```
+
+#Random Forest 
+
+After a little trial and error, I decided to use the Random Forest Method to build my training model. 
+
+
+```{r}
+
+modFitRF <- randomForest(classe ~ ., data = training_data, ntree = 1000)
+
+modFitRF
+
+```
+
+#Cross Testing Results
+
+Our results are pretty decent. Our model accuracy sits at 99.49%
+
+
+
+
+```{r}
+prf <- predict(modFitRF, cross_testing_data)
+confusionMatrix(prf, cross_testing_data$classe)
+
+```
+
+
+##Test Predictions
+
+And finally here are my test predictions using the original testing (pml-testing.csv) data.
+
+```{r}
+testPrediction <- predict(modFitRF, testing, type = "class")
+testPrediction
+```
+
+
+
+#Fin
+
+
+
